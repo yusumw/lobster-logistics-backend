@@ -7,11 +7,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY server.py .
 
-ENV PORT=8080
 ENV DB_PATH=/data/lobster.db
 
 RUN mkdir -p /data
 
-EXPOSE 8080
-
-CMD ["gunicorn", "server:app", "--bind", "0.0.0.0:8080", "--workers", "2", "--timeout", "120"]
+# 使用 shell form 讓 $PORT 被正確展開（Railway 會注入 PORT 環境變量）
+CMD gunicorn server:app --bind 0.0.0.0:${PORT:-8080} --workers 2 --timeout 120
