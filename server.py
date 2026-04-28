@@ -658,13 +658,42 @@ def get_monthly():
                COUNT(*) as count,
                SUM(total_amount) as total,
                SUM(live_total_price) as live_total,
-               SUM(dead_total_price) as dead_total
+               SUM(dead_total_price) as dead_total,
+               GROUP_CONCAT(live_items, '||') as all_live,
+               GROUP_CONCAT(dead_items, '||') as all_dead
         FROM receiving_records
         WHERE date LIKE ?
         GROUP BY month
         ORDER BY month
     """, (f"{year}%",)).fetchall()
-    return jsonify([dict(r) for r in rows])
+    result = []
+    for r in rows:
+        live_weight = 0.0
+        dead_weight = 0.0
+        if r["all_live"]:
+            for items_str in r["all_live"].split('||'):
+                try:
+                    for it in json.loads(items_str):
+                        live_weight += it.get("weight", 0) or 0
+                except Exception:
+                    pass
+        if r["all_dead"]:
+            for items_str in r["all_dead"].split('||'):
+                try:
+                    for it in json.loads(items_str):
+                        dead_weight += it.get("weight", 0) or 0
+                except Exception:
+                    pass
+        result.append({
+            "month": r["month"],
+            "count": r["count"],
+            "totalAmount": r["total"] or 0,
+            "liveTotal": r["live_total"] or 0,
+            "deadTotal": r["dead_total"] or 0,
+            "liveWeight": round(live_weight, 2),
+            "deadWeight": round(dead_weight, 2),
+        })
+    return jsonify(result)
 
 @app.route("/api/analytics/by-fisherman", methods=["GET"])
 @require_auth
@@ -675,18 +704,41 @@ def get_by_fisherman():
     rows = db.execute("""
         SELECT fisherman_id, fisherman_name,
                COUNT(*) as count,
-               SUM(total_amount) as total
+               SUM(total_amount) as total,
+               GROUP_CONCAT(live_items, '||') as all_live,
+               GROUP_CONCAT(dead_items, '||') as all_dead
         FROM receiving_records
         WHERE date BETWEEN ? AND ?
         GROUP BY fisherman_id
         ORDER BY total DESC
     """, (date_from, date_to)).fetchall()
-    return jsonify([{
-        "fishermanId": r["fisherman_id"],
-        "fishermanName": r["fisherman_name"],
-        "count": r["count"],
-        "total": r["total"]
-    } for r in rows])
+    result = []
+    for r in rows:
+        live_weight = 0.0
+        dead_weight = 0.0
+        if r["all_live"]:
+            for items_str in r["all_live"].split('||'):
+                try:
+                    for it in json.loads(items_str):
+                        live_weight += it.get("weight", 0) or 0
+                except Exception:
+                    pass
+        if r["all_dead"]:
+            for items_str in r["all_dead"].split('||'):
+                try:
+                    for it in json.loads(items_str):
+                        dead_weight += it.get("weight", 0) or 0
+                except Exception:
+                    pass
+        result.append({
+            "fishermanId": r["fisherman_id"],
+            "fishermanName": r["fisherman_name"],
+            "count": r["count"],
+            "totalAmount": r["total"] or 0,
+            "liveWeight": round(live_weight, 2),
+            "deadWeight": round(dead_weight, 2),
+        })
+    return jsonify(result)
 
 # ─── 操作日誌 API ────────────────────────────────────────────────
 
